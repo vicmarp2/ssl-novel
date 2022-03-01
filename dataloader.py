@@ -5,6 +5,7 @@ import math
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from PIL import Image
+from .PairLoss.randaugment import RandAugmentMC
 
 cifar10_mean    = [0.4914, 0.4822, 0.4465]
 cifar10_std     = [0.2471, 0.2435, 0.2616]
