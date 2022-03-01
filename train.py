@@ -65,23 +65,23 @@ def train (model, datasets, dataloaders, modelpath,
         model.train()
         for i in range(args.iter_per_epoch):
             try:
-                x_l, x_l_s, y_l = next(labeled_loader)
+                (x_l, x_l_s), y_l = next(labeled_loader)
             except StopIteration:
                 labeled_loader = iter(DataLoader(labeled_dataset,
                                                  batch_size=args.train_batch,
                                                  shuffle=True,
                                                  num_workers=args.num_workers))
-                x_l, x_l_s, y_l = next(labeled_loader)
+                (x_l, x_l_s), y_l = next(labeled_loader)
             x_l, x_l_s, y_l = x_l.to(device), x_l_s.to(device), y_l.to(device)
        
             try:
-                x_ul_w, x_ul_s, _ = next(unlabeled_loader)
+                (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
             except StopIteration:
                 unlabeled_loader = iter(DataLoader(unlabeled_dataset,
                                                 batch_size=args.train_batch*args.mu,
                                                 shuffle=True,
                                                 num_workers=args.num_workers))
-                x_ul_w, x_ul_s, _ = next(unlabeled_loader)
+                (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
             x_ul_w, x_ul_s = x_ul_w.to(device), x_ul_s.to(device)
     
             # mix all batches to do a single forward pass

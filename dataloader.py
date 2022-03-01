@@ -119,7 +119,7 @@ class CIFAR10SSL(datasets.CIFAR10):
             target = self.target_transform(target)
 
         target = torch.tensor(target)
-        return torch.tensor(img), target.long()
+        return img, target
 
 
 class CIFAR100SSL(datasets.CIFAR100):
@@ -145,7 +145,7 @@ class CIFAR100SSL(datasets.CIFAR100):
             target = self.target_transform(target)
 
         target = torch.tensor(target)
-        return torch.tensor(img), target.long()
+        return torch.tensorimg, target
 
 class TransformFixMatch(object):
     def __init__(self, mean, std):
