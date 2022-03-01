@@ -136,7 +136,7 @@ if __name__ == "__main__":
                         help="Number of workers to launch during training")
     parser.add_argument('--confidence-threshold', type=float, default=0.95,
                         help='Confidence Threshold for pseudo labeling and pair loss')
-    parser.add_argument('--similarity-threshold', type=float, default=0.95,
+    parser.add_argument('--similarity-threshold', type=float, default=0.9,
                         help='Similarity Threshold for pair loss')
     parser.add_argument('--mu', default=1, type=int,
                         help='coefficient of unlabeled batch size')
