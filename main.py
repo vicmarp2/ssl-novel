@@ -124,13 +124,13 @@ if __name__ == "__main__":
                         help="Weight decay")
     parser.add_argument("--expand-labels", action="store_true",
                         help="expand labels to fit eval steps")
-    parser.add_argument('--train-batch', default=16, type=int,
+    parser.add_argument('--train-batch', default=64, type=int,
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=16*20, type=int,
+    parser.add_argument('--total-iter', default=1024*100, type=int,
                         help='total number of iterations to run')
-    parser.add_argument('--iter-per-epoch', default=16, type=int,
+    parser.add_argument('--iter-per-epoch', default=1024, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
