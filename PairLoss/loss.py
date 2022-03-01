@@ -3,7 +3,6 @@ from torch.nn import functional as F
 
 from .utils_pl import reduce_tensor, bha_coeff_log_prob, l2_distance
 
-# for type hint
 from torch import Tensor
 
 
