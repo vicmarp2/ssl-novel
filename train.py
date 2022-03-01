@@ -136,7 +136,7 @@ def train (model, datasets, dataloaders, modelpath,
         running_loss = 0.0
         if validation:
             model.eval()
-            for x_val, y_val in validation_loader:
+            for x_val, y_val in enumerate(validation_loader):
                 with torch.no_grad():
                     x_val, y_val = x_val.to(device), y_val.to(device)
                     output_val = model(x_val)
