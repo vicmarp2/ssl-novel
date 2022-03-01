@@ -5,7 +5,7 @@ import copy
 from os.path import join as pjoin
 
 from dataloader import get_cifar10, get_cifar100
-from utils import accuracy, alpha_weight, plot
+from utils import accuracy, alpha_weight, plot, interleave, de_interleave
 
 from model.wrn import WideResNet
 
@@ -57,11 +57,6 @@ def train (model, datasets, dataloaders, modelpath,
     print('-' * 20)
     model.train()
     # train
-    # STAGE ONE -> epoch < args.t1
-    # alpha for pseudolabeled loss = 0, we just train over the labeled data
-    # STAGE TWO -> args.t1 <= epoch <= args.t2
-    # alpha gets calculated for weighting the pseudolabeled data
-    # we train over labeled and pseudolabeled data
     training_losses = []
     validation_losses = []
     test_losses = []
@@ -70,52 +65,60 @@ def train (model, datasets, dataloaders, modelpath,
         model.train()
         for i in range(args.iter_per_epoch):
             try:
-                x_l, y_l = next(labeled_loader)
+                x_l, x_l_s, y_l = next(labeled_loader)
             except StopIteration:
                 labeled_loader = iter(DataLoader(labeled_dataset,
                                                  batch_size=args.train_batch,
                                                  shuffle=True,
                                                  num_workers=args.num_workers))
-                x_l, y_l = next(labeled_loader)
-            x_l, y_l = x_l.to(device), y_l.to(device)
-            
-            # unlabeled data is used in Stage 2
-            if epoch >= args.epoch_t1:
-                try:
-                    x_ul, y_ul = next(unlabeled_loader)
-                except StopIteration:
-                    unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                                    batch_size=args.train_batch,
-                                                    shuffle=True,
-                                                    num_workers=args.num_workers))
-                    x_ul, _ = next(unlabeled_loader)
-                x_ul = x_ul.to(device)
-        
-                # get the subset of pseudo-labelled data
-                model.eval()
-                output_ul = model(x_ul)
-                target_ul = F.softmax(output_ul, dim=1)
-                # TODO change the threshold to argument value
-                hot_target_ul = torch.where(target_ul > args.threshold, 1, 0)
-                idx, y_pl = torch.where(hot_target_ul == 1)
-                x_pl = x_ul[idx]
-                x_pl = x_pl.to(device)
+                x_l, x_l_s, y_l = next(labeled_loader)
+            x_l, x_l_s, y_l = x_l.to(device), x_l_s.to(device), y_l.to(device)
+       
+            try:
+                x_ul_w, x_ul_s, _ = next(unlabeled_loader)
+            except StopIteration:
+                unlabeled_loader = iter(DataLoader(unlabeled_dataset,
+                                                batch_size=args.train_batch*args.mu,
+                                                shuffle=True,
+                                                num_workers=args.num_workers))
+                x_ul_w, x_ul_s, _ = next(unlabeled_loader)
+            x_ul_w, x_ul_s = x_ul_w.to(device), x_ul_s.to(device)
+    
+            # mix all batches to do a single forward pass
+            # 1 batch labeled, 1 batch strong aug labeled
+            # args.mu batches weak aug unlabeled, args.mu batches strong aug unlabeled
+            inputs = interleave(torch.cat((x_l, x_l_s, x_ul_w, x_ul_s)), 2*args.mu+2).to(device)
+            outputs = model(inputs)
 
-            # calculate loss for labelled and pseudo-labelled data (if stage 2) and sum up
-            model.train()
-            if epoch >= args.epoch_t1:
-                n_x_pl = x_pl.size(dim=0)
-                output_pl = model(x_pl)
-                alpha_w = alpha_weight(args.alpha, args.epoch_t1, args.epoch_t2, epoch)
-                pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl) * alpha_w
-            else: 
-                n_x_pl = 0
-                pl_loss = 0.0
+            # split batches after computing logits
+            outputs = de_interleave(outputs, 2*args.mu+2)
+            output_l = outputs[:args.train_batch]
+            output_l_s = outputs[:args.train_batch*2]
+            output_ul_w, output_ul_s = outputs[args.train_batch*2:].chunk(2)
+            del outputs
 
-            n_x_l = x_l.size(dim=0)
-            output_l = model(x_l)
+            # calculate loss for labeled data
             l_loss = criterion(output_l, y_l)
-            total_loss = (l_loss*n_x_l +  pl_loss*n_x_pl) / (n_x_l + n_x_pl)
+
+            # TODO calculate pair loss for labeled data
+
+
+            # get the pseudo-label from weak augmented unlabeled data 
+            target_ul = F.softmax(output_ul_w, dim=1)
+            hot_target_ul = torch.where(target_ul > args.threshold, 1, 0)
+            idx, y_pl = torch.where(hot_target_ul == 1)
+            # get the corresping strong labeled images to compute the loss
+            output_pl = output_ul_s[idx]
+            output_pl = output_pl.to(device)
+
+            # calculate loss for pseudo-labeled data 
+            pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl) * args.lambda_u
+          
+
+            # TODO calculate pair loss for pseudolabeled data
+
+            
+            total_loss = (l_loss +  pl_loss)
 
             # back propagation
             optimizer.zero_grad()
@@ -130,7 +133,6 @@ def train (model, datasets, dataloaders, modelpath,
         
         # Calculate loss for validation set every epoch
         # Save the best model
-        # TODO implement early stopping?
         running_loss = 0.0
         if validation:
             model.eval()

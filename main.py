@@ -22,20 +22,8 @@ warnings.filterwarnings("ignore")
 
 def main(args):
     # protect iterations/epoch parameters from erroneous input values
-    if args.t2 > args.total_iter:
-        print("argument t2 should be larger than total_iter")
-        sys.exit()
-    if args.t1 > args.t2:
-        print("parameter t1 should be smaller or equal than t2")
-        sys.exit()
     if args.total_iter % args.iter_per_epoch != 0:
         print("total_iter should be multiple of iter_per_epoch")
-        sys.exit()
-    if args.t1 % args.iter_per_epoch != 0:
-        print("parameter t1 should be multiple of iter_per_epoch")
-        sys.exit()
-    if args.t2 % args.iter_per_epoch != 0:
-        print("parameter t2 should be multiple of iter_per_epoch")
         sys.exit()
 
     # load data
@@ -86,16 +74,14 @@ def main(args):
 
     # create inner arguments
     args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
-    # TODO should we use arguments or fix it for a certain percentaje of the epochs given?
-    args.epoch_t1 = math.ceil(args.t1 / args.iter_per_epoch)
-    args.epoch_t2 = math.ceil(args.t2 / args.iter_per_epoch)
 
     # create model
     model = WideResNet(args.model_depth,
                        args.num_classes, widen_factor=args.model_width, dropRate=args.drop_rate)
     model = model.to(device)
 
-    # TODO add scheduler for momentum
+    # TODO add cosine scheduler
+    # TODO ema model
     optimizer = torch.optim.SGD(
         model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
@@ -150,18 +136,16 @@ if __name__ == "__main__":
                         help="Number of workers to launch during training")
     parser.add_argument('--threshold', type=float, default=0.95,
                         help='Confidence Threshold for pseudo labeling')
+    parser.add_argument('--mu', default=7, type=int,
+                        help='coefficient of unlabeled batch size')
+    parser.add_argument('--lambda-u', default=1, type=float,
+                        help='coefficient of unlabeled loss')
     parser.add_argument("--dataout", type=str, default="./path/to/output/",
                         help="Path to save log files")
     parser.add_argument("--model-depth", type=int, default=28,
                         help="model depth for wide resnet")
     parser.add_argument("--model-width", type=int, default=2,
                         help="model width for wide resnet")
-    parser.add_argument("--alpha", type=int, default=3,
-                        help="alpha regulariser for the loss")
-    parser.add_argument("--t1", type=int, default=16*5,
-                        help="first stage of iterations for calculating the alpha regulariser")
-    parser.add_argument("--t2", type=int, default=16*10,
-                        help="second stage of iterations for calculating the alpha regulariser")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,

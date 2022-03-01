@@ -5,7 +5,7 @@ import math
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from PIL import Image
-from .PairLoss.randaugment import RandAugmentMC
+from PairLoss.randaugment import RandAugmentMC
 
 cifar10_mean    = [0.4914, 0.4822, 0.4465]
 cifar10_std     = [0.2471, 0.2435, 0.2616]
@@ -85,11 +85,11 @@ def get_cifar100(args, root):
 
     train_labeled_dataset = CIFAR100SSL(
         root, train_labeled_idxs, train=True,
-        transform=TransformFixMatch(mean=cifar10_mean, std=cifar10_std))
+        transform=TransformFixMatch(mean=cifar100_mean, std=cifar100_std))
 
     train_unlabeled_dataset = CIFAR100SSL(
         root, train_unlabeled_idxs, train=True,
-        transform=TransformFixMatch(mean=cifar10_mean, std=cifar10_std))
+        transform=TransformFixMatch(mean=cifar100_mean, std=cifar100_std))
 
     test_dataset = datasets.CIFAR100(
         root, train=False, transform=transform_val, download=False)
