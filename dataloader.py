@@ -50,11 +50,11 @@ def get_cifar10(args, root):
 
     train_labeled_dataset = CIFAR10SSL(
         root, train_labeled_idxs, train=True,
-        transform=transform_labeled)
+        transform=TransformFixMatch(mean=cifar10_mean, std=cifar10_std))
 
     train_unlabeled_dataset = CIFAR10SSL(
         root, train_unlabeled_idxs, train=True,
-        transform=transform_labeled)
+        transform=TransformFixMatch(mean=cifar10_mean, std=cifar10_std))
 
     test_dataset = datasets.CIFAR10(
         root, train=False, transform=transform_val, download=False)
@@ -84,11 +84,11 @@ def get_cifar100(args, root):
 
     train_labeled_dataset = CIFAR100SSL(
         root, train_labeled_idxs, train=True,
-        transform=transform_labeled)
+        transform=TransformFixMatch(mean=cifar10_mean, std=cifar10_std))
 
     train_unlabeled_dataset = CIFAR100SSL(
         root, train_unlabeled_idxs, train=True,
-        transform=transform_labeled)
+        transform=TransformFixMatch(mean=cifar10_mean, std=cifar10_std))
 
     test_dataset = datasets.CIFAR100(
         root, train=False, transform=transform_val, download=False)
@@ -146,3 +146,24 @@ class CIFAR100SSL(datasets.CIFAR100):
         target = torch.tensor(target)
         return torch.tensor(img), target.long()
 
+class TransformFixMatch(object):
+    def __init__(self, mean, std):
+        self.weak = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(size=32,
+                                  padding=int(32*0.125),
+                                  padding_mode='reflect')])
+        self.strong = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(size=32,
+                                  padding=int(32*0.125),
+                                  padding_mode='reflect'),
+            RandAugmentMC(n=2, m=10)])
+        self.normalize = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std)])
+
+    def __call__(self, x):
+        weak = self.weak(x)
+        strong = self.strong(x)
+        return self.normalize(weak), self.normalize(strong)
