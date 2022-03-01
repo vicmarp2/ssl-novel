@@ -82,39 +82,6 @@ def bha_coeff(p: Tensor, q: Tensor, dim: int = 1, reduction: str = "none") -> Te
 
     return bha_coeff_log_prob(log_p, log_q, dim=dim, reduction=reduction)
 
-
-def bha_coeff_distance(p: Tensor, q: Tensor, dim: int = 1, reduction: str = "none") -> Tensor:
-    """
-    Bhattacharyya coefficient of p and q; the more similar the larger the coefficient
-    :param p: (batch_size, num_classes) model predictions of the data
-    :param q: (batch_size, num_classes) label prob distribution
-    :param dim: the dimension or dimensions to reduce
-    :param reduction: reduction method, choose from "sum", "mean", "none"
-    :return: Bhattacharyya coefficient of p and q, see https://en.wikipedia.org/wiki/Bhattacharyya_distance
-    """
-    return 1. - bha_coeff(p, q, dim=dim, reduction=reduction)
-
-
-def l2_distance(x: Tensor, y: Tensor, dim: int, **kwargs) -> Tensor:
-    return torch.norm(x - y, p=2, dim=dim)
-
-def softmax_cross_entropy_loss(logits: Tensor, targets: Tensor, dim: int = 1, reduction: str = 'mean') -> Tensor:
-    """
-    :param logits: (labeled_batch_size, num_classes) model output of the labeled data
-    :param targets: (labeled_batch_size, num_classes) labels distribution for the data
-    :param dim: the dimension or dimensions to reduce
-    :param reduction: choose from 'mean', 'sum', and 'none'
-    :return:
-    """
-    loss = -torch.sum(F.log_softmax(logits, dim=dim) * targets, dim=dim)
-
-    return reduce_tensor(loss, reduction)
-
-
-def mse_loss(prob: Tensor, targets: Tensor, reduction: str = 'mean', **kwargs) -> Tensor:
-    return F.mse_loss(prob, targets, reduction=reduction)
-
-
 def bha_coeff_loss(logits: Tensor, targets: Tensor, dim: int = 1, reduction: str = "none") -> Tensor:
     """
     Bhattacharyya coefficient of p and q; the more similar the larger the coefficient
@@ -129,22 +96,3 @@ def bha_coeff_loss(logits: Tensor, targets: Tensor, dim: int = 1, reduction: str
 
     # since BC(P,Q) is maximized when P and Q are the same, we minimize 1 - B(P,Q)
     return 1. - bha_coeff_log_prob(log_probs, log_targets, dim=dim, reduction=reduction)
-
-
-def l2_dist_loss(probs: Tensor, targets: Tensor, dim: int = 1, reduction: str = "none") -> Tensor:
-    loss = l2_distance(probs, targets, dim=dim)
-
-    return reduce_tensor(loss, reduction)
-
-
-def pairwise_apply(p: Tensor, q: Tensor, func: Callable, *args, **kwargs) -> Tensor:
-    """
-    Args:
-        p: (batch_size, num_classes) first prob distribution
-        q: (batch_size, num_classes) second prob distribution
-        func: function to be applied on p and q
-    Returns: a matrix of pair-wise result between each element of p and q
-    """
-    p = p.unsqueeze(-1)
-    q = q.T.unsqueeze(0)
-    return func(p, q, *args, **kwargs)

@@ -89,7 +89,7 @@ def main(args):
 
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, False, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
     #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
@@ -124,7 +124,7 @@ if __name__ == "__main__":
                         help="Weight decay")
     parser.add_argument("--expand-labels", action="store_true",
                         help="expand labels to fit eval steps")
-    parser.add_argument('--train-batch', default=64, type=int,
+    parser.add_argument('--train-batch', default=16, type=int,
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
@@ -134,12 +134,18 @@ if __name__ == "__main__":
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
-    parser.add_argument('--threshold', type=float, default=0.95,
-                        help='Confidence Threshold for pseudo labeling')
-    parser.add_argument('--mu', default=7, type=int,
+    parser.add_argument('--confidence-threshold', type=float, default=0.95,
+                        help='Confidence Threshold for pseudo labeling and pair loss')
+    parser.add_argument('--similarity-threshold', type=float, default=0.95,
+                        help='Similarity Threshold for pair loss')
+    parser.add_argument('--mu', default=1, type=int,
                         help='coefficient of unlabeled batch size')
     parser.add_argument('--lambda-u', default=1, type=float,
                         help='coefficient of unlabeled loss')
+    parser.add_argument('--lambda-pair-s', default=1, type=float,
+                        help='coefficient of supervised pair loss')
+    parser.add_argument('--lambda-pair-u', default=1, type=float,
+                        help='coefficient of unsupervised pair loss')
     parser.add_argument("--dataout", type=str, default="./path/to/output/",
                         help="Path to save log files")
     parser.add_argument("--model-depth", type=int, default=28,

@@ -3,6 +3,7 @@ import argparse
 import math
 import copy
 from os.path import join as pjoin
+from PairLoss.pairloss import PairLoss
 
 from dataloader import get_cifar10, get_cifar100
 from utils import accuracy, alpha_weight, plot, interleave, de_interleave
@@ -41,6 +42,8 @@ def train (model, datasets, dataloaders, modelpath,
             'model_width' : args.model_width,
             'drop_rate' : args.drop_rate,
         } 
+    # define pair loss
+    pair_loss = PairLoss(args)
     # access datasets and dataloders
     labeled_dataset = datasets['labeled']
     labeled_loader = dataloaders['labeled']
@@ -66,14 +69,14 @@ def train (model, datasets, dataloaders, modelpath,
         for i in range(args.iter_per_epoch):
             try:
                 (x_l, x_l_s), y_l = next(labeled_loader)
+                
             except StopIteration:
                 labeled_loader = iter(DataLoader(labeled_dataset,
                                                  batch_size=args.train_batch,
                                                  shuffle=True,
                                                  num_workers=args.num_workers))
                 (x_l, x_l_s), y_l = next(labeled_loader)
-            x_l, x_l_s, y_l = x_l.to(device), x_l_s.to(device), y_l.to(device)
-       
+            y_l = y_l.to(device)
             try:
                 (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
             except StopIteration:
@@ -82,7 +85,6 @@ def train (model, datasets, dataloaders, modelpath,
                                                 shuffle=True,
                                                 num_workers=args.num_workers))
                 (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
-            x_ul_w, x_ul_s = x_ul_w.to(device), x_ul_s.to(device)
     
             # mix all batches to do a single forward pass
             # 1 batch labeled, 1 batch strong aug labeled
@@ -93,19 +95,19 @@ def train (model, datasets, dataloaders, modelpath,
             # split batches after computing logits
             outputs = de_interleave(outputs, 2*args.mu+2)
             output_l = outputs[:args.train_batch]
-            output_l_s = outputs[:args.train_batch*2]
+            output_l_s = outputs[args.train_batch:args.train_batch*2]
             output_ul_w, output_ul_s = outputs[args.train_batch*2:].chunk(2)
             del outputs
 
             # calculate loss for labeled data
             l_loss = criterion(output_l, y_l)
 
-            # TODO calculate pair loss for labeled data
-
+            # calculate supervised pair loss
+            pair_loss_s = pair_loss(output_l_s, y_l, mode='supervised')
 
             # get the pseudo-label from weak augmented unlabeled data 
             target_ul = F.softmax(output_ul_w, dim=1)
-            hot_target_ul = torch.where(target_ul > args.threshold, 1, 0)
+            hot_target_ul = torch.where(target_ul > args.confidence_threshold, 1, 0)
             idx, y_pl = torch.where(hot_target_ul == 1)
             # get the corresping strong labeled images to compute the loss
             output_pl = output_ul_s[idx]
@@ -115,10 +117,10 @@ def train (model, datasets, dataloaders, modelpath,
             pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl) * args.lambda_u
           
 
-            # TODO calculate pair loss for pseudolabeled data
-
+            # calculate unsupervised pair loss
+            pair_loss_u = pair_loss(output_ul_s, target_ul)
             
-            total_loss = (l_loss +  pl_loss)
+            total_loss = (l_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
 
             # back propagation
             optimizer.zero_grad()
@@ -136,9 +138,10 @@ def train (model, datasets, dataloaders, modelpath,
         running_loss = 0.0
         if validation:
             model.eval()
-            for x_val, y_val in enumerate(validation_loader):
+            for (x_val, _), y_val in validation_loader:
                 with torch.no_grad():
-                    x_val, y_val = x_val.to(device), y_val.to(device)
+                    x_val = x_val.to(device)
+                    y_val = y_val.to(device)
                     output_val = model(x_val)
                     loss = criterion(output_val, y_val)
 
