@@ -94,9 +94,9 @@ def train (model, datasets, dataloaders, modelpath,
 
             # split batches after computing logits
             outputs = de_interleave(outputs, 2*args.mu+2)
-            output_l = outputs[:args.train_batch]
-            output_l_s = outputs[args.train_batch:args.train_batch*2]
-            output_ul_w, output_ul_s = outputs[args.train_batch*2:].chunk(2)
+            output_l = outputs[:y_l.shape[0]]
+            output_l_s = outputs[y_l.shape[0]:y_l.shape[0]*2]
+            output_ul_w, output_ul_s = outputs[y_l.shape[0]*2:].chunk(2)
             del outputs
 
             # calculate loss for labeled data
@@ -119,7 +119,11 @@ def train (model, datasets, dataloaders, modelpath,
 
             # calculate unsupervised pair loss
             pair_loss_u = pair_loss(output_ul_s, target_ul)
-            
+            # print('l_loss ', l_loss)
+            # print('pl_loss ', pl_loss)
+            # print('pair_loss_s ', pair_loss_s)
+            # print('pair_loss_u ', pair_loss_u)
+
             total_loss = (l_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
 
             # back propagation
