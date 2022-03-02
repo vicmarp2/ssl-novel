@@ -114,7 +114,7 @@ def train (model, datasets, dataloaders, modelpath,
             output_pl = output_pl.to(device)
 
             # calculate loss for pseudo-labeled data 
-            pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl) * args.lambda_u
+            pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl)
           
 
             # calculate unsupervised pair loss
