@@ -2,6 +2,7 @@ import sys
 import argparse
 import math
 import copy
+import os
 from os.path import join as pjoin
 from PairLoss.pairloss import PairLoss
 
@@ -21,7 +22,10 @@ from utils import accuracy
 def train (model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
 
+    if not os.path.isdir(modelpath):
+        os.makedirs(modelpath)
     model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     training_loss = 1e8
     validation_loss = 1e8
@@ -94,9 +98,14 @@ def train (model, datasets, dataloaders, modelpath,
 
             # split batches after computing logits
             outputs = de_interleave(outputs, 2*args.mu+2)
-            output_l = outputs[:args.train_batch]
-            output_l_s = outputs[args.train_batch:args.train_batch*2]
-            output_ul_w, output_ul_s = outputs[args.train_batch*2:].chunk(2)
+            output_l = outputs[:y_l.shape[0]]
+            output_l_s = outputs[y_l.shape[0]:y_l.shape[0]*2]
+            output_ul_w, output_ul_s = outputs[y_l.shape[0]*2:].chunk(2)
+            '''print('Outputs:', outputs.shape)
+            print('Outputs_l:', output_l.shape)
+            print('Outputs_ls:', output_l_s.shape)
+            print('Outputs_ul_w:', output_ul_w.shape)
+            print('y_l:', y_l.shape)'''
             del outputs
 
             # calculate loss for labeled data
