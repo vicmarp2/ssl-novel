@@ -2,6 +2,7 @@ import sys
 import argparse
 import math
 import copy
+import os
 from os.path import join as pjoin
 from PairLoss.pairloss import PairLoss
 
@@ -21,7 +22,10 @@ from utils import accuracy
 def train (model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
 
+    if not os.path.isdir(modelpath):
+        os.makedirs(modelpath)
     model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     training_loss = 1e8
     validation_loss = 1e8
