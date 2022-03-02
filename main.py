@@ -45,7 +45,7 @@ def main(args):
                                      shuffle=True,
                                      num_workers=args.num_workers))
     unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                       batch_size=args.train_batch,
+                                       batch_size=args.train_batch*args.mu,
                                        shuffle=True,
                                        num_workers=args.num_workers))
     
