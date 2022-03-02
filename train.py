@@ -101,11 +101,6 @@ def train (model, datasets, dataloaders, modelpath,
             output_l = outputs[:y_l.shape[0]]
             output_l_s = outputs[y_l.shape[0]:y_l.shape[0]*2]
             output_ul_w, output_ul_s = outputs[y_l.shape[0]*2:].chunk(2)
-            '''print('Outputs:', outputs.shape)
-            print('Outputs_l:', output_l.shape)
-            print('Outputs_ls:', output_l_s.shape)
-            print('Outputs_ul_w:', output_ul_w.shape)
-            print('y_l:', y_l.shape)'''
             del outputs
 
             # calculate loss for labeled data
@@ -128,7 +123,11 @@ def train (model, datasets, dataloaders, modelpath,
 
             # calculate unsupervised pair loss
             pair_loss_u = pair_loss(output_ul_s, target_ul)
-            
+            # print('l_loss ', l_loss)
+            # print('pl_loss ', pl_loss)
+            # print('pair_loss_s ', pair_loss_s)
+            # print('pair_loss_u ', pair_loss_u)
+
             total_loss = (l_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
 
             # back propagation
