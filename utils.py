@@ -1,4 +1,5 @@
 import torch
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 from os.path import join as pjoin
@@ -122,4 +123,18 @@ def test_accuracy(testdataset, filepath = "./path/to/model.pth.tar"):
             total_accuracy.append(sum(acc))
     print('Accuracy of the network on test images: %d %%' % (
                 sum(total_accuracy)/len(total_accuracy)))
+
+def get_cosine_schedule_with_warmup(optimizer,
+                                    num_warmup_steps,
+                                    num_training_steps,
+                                    num_cycles=7./16.,
+                                    last_epoch=-1):
+    def _lr_lambda(current_step):
+        if current_step < num_warmup_steps:
+            return float(current_step) / float(max(1, num_warmup_steps))
+        no_progress = float(current_step - num_warmup_steps) / \
+            float(max(1, num_training_steps - num_warmup_steps))
+        return max(0., math.cos(math.pi * num_cycles * no_progress))
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, last_epoch)
     
