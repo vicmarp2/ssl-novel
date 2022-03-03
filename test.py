@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from utils import accuracy
 from torch.utils.data import DataLoader
 
-def test_cifar10(testdataset, filepath = "./path/to/model.pth.tar"):
+def test_cifar10(testdataset, emaFlag=False, filepath = "./path/to/model.pth.tar"):
     '''
     args: 
         testdataset : (torch.utils.data.Dataset)
@@ -36,6 +36,8 @@ def test_cifar10(testdataset, filepath = "./path/to/model.pth.tar"):
     model = WideResNet(modelpath['model_depth'],
                        modelpath['num_classes'], widen_factor=modelpath['model_width'], dropRate=modelpath['drop_rate'])
     model = model.to(device)
+    if emaFlag:
+        model.ema.load_state_dict(modelpath['ema_state_dict'])
     model.load_state_dict(modelpath['model_state_dict'])
 
     # RETURN SOFTMAX

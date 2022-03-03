@@ -20,7 +20,7 @@ from utils import accuracy
 
 
 def train (model, datasets, dataloaders, modelpath,
-          criterion, optimizer, scheduler, validation, test, args):
+          criterion, optimizer, scheduler, ema_model, validation, test, args):
 
     if not os.path.isdir(modelpath):
         os.makedirs(modelpath)
@@ -35,6 +35,7 @@ def train (model, datasets, dataloaders, modelpath,
         best_model = {
             'epoch': 0,
             'model_state_dict': copy.deepcopy(model.state_dict()),
+            'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
             'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
             'training_losses': [],
             'validation_losses': [],
@@ -134,6 +135,8 @@ def train (model, datasets, dataloaders, modelpath,
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
+            if args.use_ema:
+                ema_model.update(model)
 
             running_loss += total_loss.item()
         training_loss = running_loss/(args.iter_per_epoch)
@@ -164,6 +167,7 @@ def train (model, datasets, dataloaders, modelpath,
                 best_model = {
                     'epoch': epoch,
                     'model_state_dict': copy.deepcopy(model.state_dict()),
+                    'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
                     'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
                     'training_losses':  copy.deepcopy(training_losses),
                     'validation_losses': copy.deepcopy(validation_losses),
@@ -185,6 +189,8 @@ def train (model, datasets, dataloaders, modelpath,
         if test:
             total_accuracy = []
             test_loss = 0.0
+            if args.use_ema:
+                model = ema_model.ema
             model.eval()
             for x_test, y_test in test_loader:
                 with torch.no_grad():
@@ -204,6 +210,7 @@ def train (model, datasets, dataloaders, modelpath,
     last_model = {
         'epoch': epoch,
         'model_state_dict': copy.deepcopy(model.state_dict()),
+        'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
         'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
         'training_losses':  copy.deepcopy(training_losses),
         'validation_losses': copy.deepcopy(validation_losses),

@@ -80,20 +80,29 @@ def main(args):
                        args.num_classes, widen_factor=args.model_width, dropRate=args.drop_rate)
     model = model.to(device)
 
-    # TODO add cosine scheduler
-    # TODO ema model
     optimizer = torch.optim.SGD(
         model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
+
+    # TODO add cosine scheduler  --> Done
     #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
     scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup, args.total_iter)
     criterion = nn.CrossEntropyLoss()
 
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    # TODO ema model
+    if args.use_ema:
+        from model.ema import ModelEMA
+        ema_model = ModelEMA(args, model, args.ema_decay)
+        #ema_model = ema_model.to(device)
+        best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, ema_model, True, True,
+                           args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, ema_model, True, True, args)
 
     # test
-    #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
+    '''if args.use_ema:
+        test_cifar10(test_dataset, emaFlag=True, filepath = './models/obs/best_model_cifar10.pt')
+    test_cifar10(test_dataset, emaFlag=False, filepath='./models/obs/best_model_cifar10.pt')'''
     
     # get test accuracy
     # test_accuracy(test_dataset, './models/obs/best_model_cifar10.pt')
@@ -137,6 +146,12 @@ if __name__ == "__main__":
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
+
+    parser.add_argument('--use-ema', action='store_true', default=True,
+                        help='use EMA model')
+    parser.add_argument('--ema-decay', default=0.999, type=float,
+                        help='EMA decay rate')
+
     parser.add_argument('--confidence-threshold', type=float, default=0.95,
                         help='Confidence Threshold for pseudo labeling and pair loss')
     parser.add_argument('--similarity-threshold', type=float, default=0.9,
