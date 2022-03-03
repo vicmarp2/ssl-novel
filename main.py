@@ -129,7 +129,7 @@ if __name__ == "__main__":
                         help="The initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float,
                         help="Optimizer momentum")
-    parser.add_argument('--warmup', default=0, type=float,
+    parser.add_argument('--warmup', default=10, type=float,
                         help='warmup epochs (unlabeled data based)')
     # default value was 0.00005. I changed default value, fixmatch paper recomends 0.0005
     parser.add_argument("--wd", default=0.0005, type=float,
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=1024*100, type=int,
+    parser.add_argument('--total-iter', default=1024*30, type=int,
                         help='total number of iterations to run')
     parser.add_argument('--iter-per-epoch', default=1024, type=int,
                         help="Number of iterations to run per epoch")
@@ -164,6 +164,8 @@ if __name__ == "__main__":
                         help='coefficient of supervised pair loss')
     parser.add_argument('--lambda-pair-u', default=1, type=float,
                         help='coefficient of unsupervised pair loss')
+    parser.add_argument('--max-grad-norm', default=2, type=float,
+                        help='Maximum gradient norm allowed for gradient clipping')
     parser.add_argument("--dataout", type=str, default="./path/to/output/",
                         help="Path to save log files")
     parser.add_argument("--model-depth", type=int, default=28,

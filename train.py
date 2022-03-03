@@ -134,9 +134,11 @@ def train (model, datasets, dataloaders, modelpath,
             # back propagation
             optimizer.zero_grad()
             total_loss.backward()
+            #gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
             optimizer.step()
             if args.use_ema:
-                ema_model.update(model)
+                ema_model.update()
 
             running_loss += total_loss.item()
         training_loss = running_loss/(args.iter_per_epoch)
@@ -148,6 +150,8 @@ def train (model, datasets, dataloaders, modelpath,
         # Save the best model
         running_loss = 0.0
         if validation:
+            if args.use_ema:
+                model = ema_model.ema
             model.eval()
             for (x_val, _), y_val in validation_loader:
                 with torch.no_grad():
