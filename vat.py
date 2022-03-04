@@ -72,11 +72,11 @@ class VATLoss(nn.Module):
         advPredictions = F.log_softmax(advExamples, dim=1)
         loss = F.kl_div(advPredictions, pred, reduction='batchmean')
 
-        writer = SummaryWriter()
+        '''writer = SummaryWriter()
         grid_x = torchvision.utils.make_grid(x)
         writer.add_image('image', grid_x, 0)
         grid = torchvision.utils.make_grid(advImage)
-        writer.add_image('perturbation', grid, 0 + 1)
+        writer.add_image('perturbation', grid, 0 + 1)'''
 
         #figure, ax = plt.subplots(1, 2, figsize=(32, 32))
         #ax[0].imshow(x.squeeze(0).cuda().detach().cpu())

@@ -172,6 +172,14 @@ if __name__ == "__main__":
                         help="model depth for wide resnet")
     parser.add_argument("--model-width", type=int, default=2,
                         help="model width for wide resnet")
+    parser.add_argument('--alpha', type=float, default=1, metavar='ALPHA',
+                        help='regularization coefficient (default: 0.01)')
+    parser.add_argument("--vat-xi", default=0.6, type=float,
+                        help="VAT xi parameter")
+    parser.add_argument("--vat-eps", default=8, type=float,
+                        help="VAT epsilon parameter")
+    parser.add_argument("--vat-iter", default=1, type=int,
+                        help="VAT iteration parameter")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,

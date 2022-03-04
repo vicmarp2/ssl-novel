@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from utils import accuracy
+from vat import VATLoss
 
 
 def train (model, datasets, dataloaders, modelpath,
@@ -102,10 +103,15 @@ def train (model, datasets, dataloaders, modelpath,
             output_l = outputs[:y_l.shape[0]]
             output_l_s = outputs[y_l.shape[0]:y_l.shape[0]*2]
             output_ul_w, output_ul_s = outputs[y_l.shape[0]*2:].chunk(2)
+            # print('pair_loss_s ', pair_loss_s)
+            # print('pair_loss_u ', pair_loss_u)
             del outputs
 
             # calculate loss for labeled data
+            vat_loss = VATLoss(args)
+            lds = vat_loss(model, x_l.to(device))
             l_loss = criterion(output_l, y_l)
+            s_loss = l_loss + args.alpha*lds
 
             # calculate supervised pair loss
             pair_loss_s = pair_loss(output_l_s, y_l, mode='supervised')
@@ -129,7 +135,7 @@ def train (model, datasets, dataloaders, modelpath,
             # print('pair_loss_s ', pair_loss_s)
             # print('pair_loss_u ', pair_loss_u)
 
-            total_loss = (l_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
+            total_loss = (s_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
 
             # back propagation
             optimizer.zero_grad()
