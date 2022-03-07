@@ -4,7 +4,7 @@ import argparse
 import math
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10, test_cifar100
-from utils import plot, plot_model, test_accuracy, validation_set
+from utils import plot, plot_model, test_accuracy, validation_set, get_cosine_schedule_with_warmup
 
 from model.wrn import WideResNet
 from train import train
@@ -86,7 +86,8 @@ def main(args):
     # TODO ema model
     optimizer = torch.optim.SGD(
         model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
+    #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
+    scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup, args.total_iter)
     criterion = nn.CrossEntropyLoss()
 
 
@@ -121,6 +122,8 @@ if __name__ == "__main__":
                         help="The initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float,
                         help="Optimizer momentum")
+    parser.add_argument('--warmup', default=0, type=float,
+                        help='warmup epochs (unlabeled data based)')
     # default value was 0.00005. I changed default value, fixmatch paper recomends 0.0005
     parser.add_argument("--wd", default=0.001, type=float,
                         help="Weight decay")
