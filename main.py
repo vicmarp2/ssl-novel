@@ -43,11 +43,13 @@ def main(args):
     labeled_loader = iter(DataLoader(labeled_dataset,
                                      batch_size=args.train_batch,
                                      shuffle=True,
-                                     num_workers=args.num_workers))
+                                     num_workers=args.num_workers,
+                                     drop_last=True))
     unlabeled_loader = iter(DataLoader(unlabeled_dataset,
                                        batch_size=args.train_batch*args.mu,
                                        shuffle=True,
-                                       num_workers=args.num_workers))
+                                       num_workers=args.num_workers,
+                                       drop_last=True))
     
     validation_loader = DataLoader(validation_dataset,
                              batch_size=args.train_batch,
@@ -114,13 +116,13 @@ if __name__ == "__main__":
     parser.add_argument("--datapath", default="./data/",
                         type=str, help="Path to the CIFAR-10/100 dataset")
     parser.add_argument('--num-labeled', type=int,
-                        default=4000, help='Total number of labeled samples')
+                        default=250, help='Total number of labeled samples')
     parser.add_argument("--lr", default=0.03, type=float,
                         help="The initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float,
                         help="Optimizer momentum")
     # default value was 0.00005. I changed default value, fixmatch paper recomends 0.0005
-    parser.add_argument("--wd", default=0.0005, type=float,
+    parser.add_argument("--wd", default=0.001, type=float,
                         help="Weight decay")
     parser.add_argument("--expand-labels", action="store_true",
                         help="expand labels to fit eval steps")
@@ -128,9 +130,9 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=1024*100, type=int,
+    parser.add_argument('--total-iter', default=128*100, type=int,
                         help='total number of iterations to run')
-    parser.add_argument('--iter-per-epoch', default=1024, type=int,
+    parser.add_argument('--iter-per-epoch', default=128, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
@@ -138,14 +140,16 @@ if __name__ == "__main__":
                         help='Confidence Threshold for pseudo labeling and pair loss')
     parser.add_argument('--similarity-threshold', type=float, default=0.9,
                         help='Similarity Threshold for pair loss')
-    parser.add_argument('--mu', default=1, type=int,
+    parser.add_argument('--mu', default=7, type=int,
                         help='coefficient of unlabeled batch size')
     parser.add_argument('--lambda-u', default=1, type=float,
                         help='coefficient of unlabeled loss')
-    parser.add_argument('--lambda-pair-s', default=1, type=float,
+    parser.add_argument('--lambda-pair-s', default=75, type=float,
                         help='coefficient of supervised pair loss')
-    parser.add_argument('--lambda-pair-u', default=1, type=float,
+    parser.add_argument('--lambda-pair-u', default=75, type=float,
                         help='coefficient of unsupervised pair loss')
+    parser.add_argument('--max-grad-norm', default=2, type=float,
+                        help='Maximum gradient norm allowed for gradient clipping')
     parser.add_argument("--dataout", type=str, default="./path/to/output/",
                         help="Path to save log files")
     parser.add_argument("--model-depth", type=int, default=28,
@@ -155,7 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,
-                        default=1000, help='Total number of validation samples')
+                        default=200, help='Total number of validation samples')
     parser.add_argument("--modelpath", default="./models/obs/",
                         type=str, help="Path to the persisted models")
     args = parser.parse_args()

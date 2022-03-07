@@ -12,6 +12,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class PairLoss:
     def __init__(self, args):
+        print('new pair loss v2')
         self.confidence_threshold = args.confidence_threshold
         self.similarity_threshold = args.similarity_threshold
         self.similarity_metric = bha_coeff
@@ -26,8 +27,9 @@ class PairLoss:
         """
         if(mode == 'supervised'):
             targets_s = np.zeros(logits.size())
+            targets_s = np.full_like(targets_s, 1e-10)
             targets_idx = [np.arange(targets_s.shape[0]), targets.tolist()]
-            targets_s[targets_idx] = 1
+            targets_s[targets_idx] = 1 - (1e-10 * (targets_s.shape[1]-1))
             targets = torch.tensor(targets_s).to(device)
         indices = get_pair_indices(targets, ordered_pair=True)
         total_size = len(indices) // 2
