@@ -12,7 +12,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class PairLoss:
     def __init__(self, args):
-        print('new pair loss v2')
         self.confidence_threshold = args.confidence_threshold
         self.similarity_threshold = args.similarity_threshold
         self.similarity_metric = bha_coeff
