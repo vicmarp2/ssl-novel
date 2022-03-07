@@ -1,10 +1,11 @@
-#%%
+# %%
 import sys
 import argparse
 import math
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10, test_cifar100
 from utils import plot, plot_model, test_accuracy, validation_set, get_cosine_schedule_with_warmup
+import torch
 
 from model.wrn import WideResNet
 from train import train
@@ -12,11 +13,12 @@ from train import train
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-#%%
+# %%
 
 # dataloader.py:121: UserWarning UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach()
 # or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
 import warnings
+
 warnings.filterwarnings("ignore")
 
 
@@ -37,23 +39,25 @@ def main(args):
                                                                         args.datapath)
 
     validation_dataset = validation_set(unlabeled_dataset, args.num_validation, args.num_classes)
-    
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     labeled_loader = iter(DataLoader(labeled_dataset,
                                      batch_size=args.train_batch,
                                      shuffle=True,
-                                     num_workers=args.num_workers))
+                                     num_workers=args.num_workers,
+                                     drop_last=True))
     unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                       batch_size=args.train_batch*args.mu,
+                                       batch_size=args.train_batch * args.mu,
                                        shuffle=True,
-                                       num_workers=args.num_workers))
-    
+                                       num_workers=args.num_workers,
+                                       drop_last=True))
+
     validation_loader = DataLoader(validation_dataset,
-                             batch_size=args.train_batch,
-                             shuffle=True,
-                             num_workers=args.num_workers)
-    
+                                   batch_size=args.train_batch,
+                                   shuffle=True,
+                                   num_workers=args.num_workers)
+
     test_loader = DataLoader(test_dataset,
                              batch_size=args.test_batch,
                              shuffle=False,
@@ -84,29 +88,29 @@ def main(args):
         model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.wd)
 
     # TODO add cosine scheduler  --> Done
-    #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
+    # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
     scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup, args.total_iter)
     criterion = nn.CrossEntropyLoss()
 
-
     # train model
     # TODO ema model
-    if args.use_ema:
+    '''if args.use_ema:
         from model.ema import ModelEMA
         ema_model = ModelEMA(args, model, args.ema_decay)
         #ema_model = ema_model.to(device)
         best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, ema_model, True, True,
-                           args)
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, ema_model, True, True, args)
+                           args)'''
+    torch.cuda.empty_cache()
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
     '''if args.use_ema:
         test_cifar10(test_dataset, emaFlag=True, filepath = './models/obs/best_model_cifar10.pt')
     test_cifar10(test_dataset, emaFlag=False, filepath='./models/obs/best_model_cifar10.pt')'''
-    
+
     # get test accuracy
     # test_accuracy(test_dataset, './models/obs/best_model_cifar10.pt')
-    
+
     # %%
     # plot training loss
     # plot_model('./models/obs/last_model.pt', 'training_losses', 'Training Loss')
@@ -114,6 +118,7 @@ def main(args):
     # plot training loss
     # plot_model('./models/obs/last_model.pt', 'test_losses', 'Test Loss', color='r')
     # %%
+
 
 if __name__ == "__main__":
     # parse arguments
@@ -132,7 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('--warmup', default=10, type=float,
                         help='warmup epochs (unlabeled data based)')
     # default value was 0.00005. I changed default value, fixmatch paper recomends 0.0005
-    parser.add_argument("--wd", default=0.0005, type=float,
+    parser.add_argument("--wd", default=0.00005, type=float,
                         help="Weight decay")
     parser.add_argument("--expand-labels", action="store_true",
                         help="expand labels to fit eval steps")
@@ -140,9 +145,9 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=1024*30, type=int,
+    parser.add_argument('--total-iter', default=128 * 50, type=int,
                         help='total number of iterations to run')
-    parser.add_argument('--iter-per-epoch', default=1024, type=int,
+    parser.add_argument('--iter-per-epoch', default=128, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
@@ -156,15 +161,15 @@ if __name__ == "__main__":
                         help='Confidence Threshold for pseudo labeling and pair loss')
     parser.add_argument('--similarity-threshold', type=float, default=0.9,
                         help='Similarity Threshold for pair loss')
-    parser.add_argument('--mu', default=1, type=int,
+    parser.add_argument('--mu', default=7, type=int,
                         help='coefficient of unlabeled batch size')
     parser.add_argument('--lambda-u', default=1, type=float,
                         help='coefficient of unlabeled loss')
-    parser.add_argument('--lambda-pair-s', default=1, type=float,
+    parser.add_argument('--lambda-pair-s', default=75, type=float,
                         help='coefficient of supervised pair loss')
-    parser.add_argument('--lambda-pair-u', default=1, type=float,
+    parser.add_argument('--lambda-pair-u', default=75, type=float,
                         help='coefficient of unsupervised pair loss')
-    parser.add_argument('--max-grad-norm', default=2, type=float,
+    parser.add_argument('--max-grad-norm', default=1, type=float,
                         help='Maximum gradient norm allowed for gradient clipping')
     parser.add_argument("--dataout", type=str, default="./path/to/output/",
                         help="Path to save log files")
@@ -174,9 +179,9 @@ if __name__ == "__main__":
                         help="model width for wide resnet")
     parser.add_argument('--alpha', type=float, default=1, metavar='ALPHA',
                         help='regularization coefficient (default: 0.01)')
-    parser.add_argument("--vat-xi", default=0.6, type=float,
+    parser.add_argument("--vat-xi", default=1, type=float,
                         help="VAT xi parameter")
-    parser.add_argument("--vat-eps", default=8, type=float,
+    parser.add_argument("--vat-eps", default=2, type=float,
                         help="VAT epsilon parameter")
     parser.add_argument("--vat-iter", default=1, type=int,
                         help="VAT iteration parameter")

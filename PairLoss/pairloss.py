@@ -27,7 +27,7 @@ class PairLoss:
         if(mode == 'supervised'):
             targets_s = np.zeros(logits.size())
             targets_idx = [np.arange(targets_s.shape[0]), targets.tolist()]
-            targets_s[targets_idx] = 1
+            targets_s[targets_idx] = 1 - (1e-10 * (targets_s.shape[1]-1))
             targets = torch.tensor(targets_s).to(device)
         indices = get_pair_indices(targets, ordered_pair=True)
         total_size = len(indices) // 2

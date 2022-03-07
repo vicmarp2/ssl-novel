@@ -20,9 +20,9 @@ from utils import accuracy
 from vat import VATLoss
 
 
-def train (model, datasets, dataloaders, modelpath,
-          criterion, optimizer, scheduler, ema_model, validation, test, args):
-
+def train(model, datasets, dataloaders, modelpath,
+          criterion, optimizer, scheduler, validation, test, args):
+    torch.cuda.empty_cache()
     if not os.path.isdir(modelpath):
         os.makedirs(modelpath)
     model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
@@ -36,19 +36,19 @@ def train (model, datasets, dataloaders, modelpath,
         best_model = {
             'epoch': 0,
             'model_state_dict': copy.deepcopy(model.state_dict()),
-            'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
+            # 'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
             'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
             'training_losses': [],
             'validation_losses': [],
             'test_losses': [],
-            'model_depth' : args.model_depth,
-            'num_classes' : args.num_classes,
-            'num_labeled' : args.num_labeled,
-            'num_validation' : args.num_validation,
-            'model_width' : args.model_width,
-            'drop_rate' : args.drop_rate,
-        } 
-    # define pair loss
+            'model_depth': args.model_depth,
+            'num_classes': args.num_classes,
+            'num_labeled': args.num_labeled,
+            'num_validation': args.num_validation,
+            'model_width': args.model_width,
+            'drop_rate': args.drop_rate,
+        }
+        # define pair loss
     pair_loss = PairLoss(args)
     # access datasets and dataloders
     labeled_dataset = datasets['labeled']
@@ -75,34 +75,36 @@ def train (model, datasets, dataloaders, modelpath,
         for i in range(args.iter_per_epoch):
             try:
                 (x_l, x_l_s), y_l = next(labeled_loader)
-                
+
             except StopIteration:
                 labeled_loader = iter(DataLoader(labeled_dataset,
                                                  batch_size=args.train_batch,
                                                  shuffle=True,
-                                                 num_workers=args.num_workers))
+                                                 num_workers=args.num_workers,
+                                                 drop_last=True))
                 (x_l, x_l_s), y_l = next(labeled_loader)
             y_l = y_l.to(device)
             try:
                 (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
             except StopIteration:
                 unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                                batch_size=args.train_batch*args.mu,
-                                                shuffle=True,
-                                                num_workers=args.num_workers))
+                                                   batch_size=args.train_batch * args.mu,
+                                                   shuffle=True,
+                                                   num_workers=args.num_workers,
+                                                   drop_last=True))
                 (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
-    
+
             # mix all batches to do a single forward pass
             # 1 batch labeled, 1 batch strong aug labeled
             # args.mu batches weak aug unlabeled, args.mu batches strong aug unlabeled
-            inputs = interleave(torch.cat((x_l, x_l_s, x_ul_w, x_ul_s)), 2*args.mu+2).to(device)
+            inputs = interleave(torch.cat((x_l, x_l_s, x_ul_w, x_ul_s)), 2 * args.mu + 2).to(device)
             outputs = model(inputs)
 
             # split batches after computing logits
-            outputs = de_interleave(outputs, 2*args.mu+2)
-            output_l = outputs[:y_l.shape[0]]
-            output_l_s = outputs[y_l.shape[0]:y_l.shape[0]*2]
-            output_ul_w, output_ul_s = outputs[y_l.shape[0]*2:].chunk(2)
+            outputs = de_interleave(outputs, 2 * args.mu + 2)
+            output_l = outputs[:args.train_batch]
+            output_l_s = outputs[args.train_batch:args.train_batch * 2]
+            output_ul_w, output_ul_s = outputs[args.train_batch * 2:].chunk(2)
             # print('pair_loss_s ', pair_loss_s)
             # print('pair_loss_u ', pair_loss_u)
             del outputs
@@ -111,12 +113,12 @@ def train (model, datasets, dataloaders, modelpath,
             vat_loss = VATLoss(args)
             lds = vat_loss(model, x_l.to(device))
             l_loss = criterion(output_l, y_l)
-            s_loss = l_loss + args.alpha*lds
+            s_loss = l_loss + args.alpha * lds
 
             # calculate supervised pair loss
             pair_loss_s = pair_loss(output_l_s, y_l, mode='supervised')
 
-            # get the pseudo-label from weak augmented unlabeled data 
+            # get the pseudo-label from weak augmented unlabeled data
             target_ul = F.softmax(output_ul_w, dim=1)
             hot_target_ul = torch.where(target_ul > args.confidence_threshold, 1, 0)
             idx, y_pl = torch.where(hot_target_ul == 1)
@@ -124,9 +126,8 @@ def train (model, datasets, dataloaders, modelpath,
             output_pl = output_ul_s[idx]
             output_pl = output_pl.to(device)
 
-            # calculate loss for pseudo-labeled data 
+            # calculate loss for pseudo-labeled data
             pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl)
-          
 
             # calculate unsupervised pair loss
             pair_loss_u = pair_loss(output_ul_s, target_ul)
@@ -135,29 +136,30 @@ def train (model, datasets, dataloaders, modelpath,
             # print('pair_loss_s ', pair_loss_s)
             # print('pair_loss_u ', pair_loss_u)
 
-            total_loss = (s_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
+            total_loss = (
+                        s_loss + args.lambda_u * pl_loss + args.lambda_pair_s * pair_loss_s + args.lambda_pair_u * pair_loss_u)
 
             # back propagation
             optimizer.zero_grad()
             total_loss.backward()
-            #gradient clipping
+            # gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
             optimizer.step()
-            if args.use_ema:
-                ema_model.update()
+            '''if args.use_ema:
+                ema_model.update()'''
 
             running_loss += total_loss.item()
-        training_loss = running_loss/(args.iter_per_epoch)
+        training_loss = running_loss / (args.iter_per_epoch)
         training_losses.append(training_loss)
         print('Epoch: {} : Train Loss : {:.5f} '.format(
             epoch, training_loss))
-        
+
         # Calculate loss for validation set every epoch
         # Save the best model
         running_loss = 0.0
         if validation:
-            if args.use_ema:
-                model = ema_model.ema
+            '''if args.use_ema:
+                model = ema_model.ema'''
             model.eval()
             for (x_val, _), y_val in validation_loader:
                 with torch.no_grad():
@@ -171,23 +173,23 @@ def train (model, datasets, dataloaders, modelpath,
             validation_loss = running_loss / len(validation_dataset)
             validation_losses.append(validation_loss)
             print('Epoch: {} : Validation Loss : {:.5f} '.format(
-            epoch, validation_loss))
+                epoch, validation_loss))
 
             if best_model['epoch'] == 0 or validation_loss < best_model['validation_losses'][-1]:
                 best_model = {
                     'epoch': epoch,
                     'model_state_dict': copy.deepcopy(model.state_dict()),
-                    'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
+                    # 'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
                     'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-                    'training_losses':  copy.deepcopy(training_losses),
+                    'training_losses': copy.deepcopy(training_losses),
                     'validation_losses': copy.deepcopy(validation_losses),
                     'test_losses': copy.deepcopy(test_losses),
-                    'model_depth' : args.model_depth,
-                    'num_classes' : args.num_classes,
-                    'num_labeled' : args.num_labeled,
-                    'num_validation' : args.num_validation,
-                    'model_width' : args.model_width,
-                    'drop_rate' : args.drop_rate
+                    'model_depth': args.model_depth,
+                    'num_classes': args.num_classes,
+                    'num_labeled': args.num_labeled,
+                    'num_validation': args.num_validation,
+                    'model_width': args.model_width,
+                    'drop_rate': args.drop_rate
                 }
                 torch.save(best_model, pjoin(modelpath, 'best_model_{}_{}.pt'.format(model_subpath, args.num_labeled)))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
@@ -199,13 +201,13 @@ def train (model, datasets, dataloaders, modelpath,
         if test:
             total_accuracy = []
             test_loss = 0.0
-            if args.use_ema:
-                model = ema_model.ema
+            '''if args.use_ema:
+                model = ema_model.ema'''
             model.eval()
             for x_test, y_test in test_loader:
                 with torch.no_grad():
                     x_test, y_test = x_test.to(device), y_test.to(device)
-                    output_test = model(x_test)                              
+                    output_test = model(x_test)
                     loss = criterion(output_test, y_test)
                     running_loss += loss.item() * x_test.size(0)
                     acc = accuracy(output_test, y_test)
@@ -215,22 +217,22 @@ def train (model, datasets, dataloaders, modelpath,
             print('Epoch: {} : Test Loss : {:.5f} '.format(
                 epoch, test_loss))
             print('Accuracy of the network on test images: %d %%' % (
-                sum(total_accuracy)/len(total_accuracy)))
+                    sum(total_accuracy) / len(total_accuracy)))
 
     last_model = {
         'epoch': epoch,
         'model_state_dict': copy.deepcopy(model.state_dict()),
-        'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
+        # 'ema_state_dict': copy.deepcopy(ema_model.ema.state_dict()) if args.use_ema else None,
         'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-        'training_losses':  copy.deepcopy(training_losses),
+        'training_losses': copy.deepcopy(training_losses),
         'validation_losses': copy.deepcopy(validation_losses),
         'test_losses': copy.deepcopy(test_losses),
-        'model_depth' : args.model_depth,
-        'num_classes' : args.num_classes,
-        'num_labeled' : args.num_labeled,
-        'num_validation' : args.num_validation,
-        'model_width' : args.model_width,
-        'drop_rate' : args.drop_rate
+        'model_depth': args.model_depth,
+        'num_classes': args.num_classes,
+        'num_labeled': args.num_labeled,
+        'num_validation': args.num_validation,
+        'model_width': args.model_width,
+        'drop_rate': args.drop_rate
     }
     torch.save(last_model, pjoin(modelpath, 'last_model_{}_{}.pt'.format(model_subpath, args.num_labeled)))
     if validation:
