@@ -62,7 +62,8 @@ def train(model, datasets, dataloaders, modelpath,
         test_dataset = datasets['test']
         test_loader = dataloaders['test']
 
-    print('Training started')
+    print('Training started with clipping')
+    print('Dropping last not full batch')
     print('-' * 20)
     model.train()
     # train
@@ -88,25 +89,27 @@ def train(model, datasets, dataloaders, modelpath,
                 (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
             except StopIteration:
                 unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                                   batch_size=args.train_batch * args.mu,
-                                                   shuffle=True,
-                                                   num_workers=args.num_workers,
-                                                   drop_last=True))
+                                                batch_size=args.train_batch*args.mu,
+                                                shuffle=True,
+                                                num_workers=args.num_workers,
+                                                drop_last=True))
                 (x_ul_w, x_ul_s), _ = next(unlabeled_loader)
 
             # mix all batches to do a single forward pass
             # 1 batch labeled, 1 batch strong aug labeled
             # args.mu batches weak aug unlabeled, args.mu batches strong aug unlabeled
-            inputs = interleave(torch.cat((x_l, x_l_s, x_ul_w, x_ul_s)), 2 * args.mu + 2).to(device)
+            # print("x_l: ", x_l.size())
+            # print("x_l_s: ", x_l_s.size())
+            # print("x_ul_w: ", x_ul_w.size())
+            # print("x_ul_s: ", x_ul_s.size())
+            inputs = interleave(torch.cat((x_l, x_l_s, x_ul_w, x_ul_s)), 2*args.mu+2).to(device)
             outputs = model(inputs)
 
             # split batches after computing logits
-            outputs = de_interleave(outputs, 2 * args.mu + 2)
+            outputs = de_interleave(outputs, 2*args.mu+2)
             output_l = outputs[:args.train_batch]
-            output_l_s = outputs[args.train_batch:args.train_batch * 2]
-            output_ul_w, output_ul_s = outputs[args.train_batch * 2:].chunk(2)
-            # print('pair_loss_s ', pair_loss_s)
-            # print('pair_loss_u ', pair_loss_u)
+            output_l_s = outputs[args.train_batch:args.train_batch*2]
+            output_ul_w, output_ul_s = outputs[args.train_batch*2:].chunk(2)
             del outputs
 
             # calculate loss for labeled data
@@ -131,10 +134,7 @@ def train(model, datasets, dataloaders, modelpath,
 
             # calculate unsupervised pair loss
             pair_loss_u = pair_loss(output_ul_s, target_ul)
-            # print('l_loss ', l_loss)
-            # print('pl_loss ', pl_loss)
-            # print('pair_loss_s ', pair_loss_s)
-            # print('pair_loss_u ', pair_loss_u)
+            
 
             total_loss = (
                         s_loss + args.lambda_u * pl_loss + args.lambda_pair_s * pair_loss_s + args.lambda_pair_u * pair_loss_u)
@@ -144,12 +144,21 @@ def train(model, datasets, dataloaders, modelpath,
             total_loss.backward()
             # gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
+
+            #Gradient Value Clipping
+            # torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=1.0)
             optimizer.step()
             '''if args.use_ema:
                 ema_model.update()'''
 
             running_loss += total_loss.item()
-        training_loss = running_loss / (args.iter_per_epoch)
+        '''
+        print('l_loss ', l_loss)
+        print('pl_loss ', pl_loss)
+        print('pair_loss_s ', pair_loss_s)
+        print('pair_loss_u ', pair_loss_u)
+        '''
+        training_loss = running_loss/(args.iter_per_epoch)
         training_losses.append(training_loss)
         print('Epoch: {} : Train Loss : {:.5f} '.format(
             epoch, training_loss))
