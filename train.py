@@ -22,7 +22,6 @@ from vat import VATLoss
 
 def train(model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
-    torch.cuda.empty_cache()
     if not os.path.isdir(modelpath):
         os.makedirs(modelpath)
     model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
@@ -111,9 +110,7 @@ def train(model, datasets, dataloaders, modelpath,
 
             # calculate loss for labeled data
             vat_loss = VATLoss(args)
-            lds = vat_loss(model, x_l.to(device))
             l_loss = criterion(output_l, y_l)
-            s_loss = l_loss + args.alpha * lds
 
             # calculate supervised pair loss
             pair_loss_s = pair_loss(output_l_s, y_l, mode='supervised')
@@ -128,6 +125,8 @@ def train(model, datasets, dataloaders, modelpath,
 
             # calculate loss for pseudo-labeled data
             pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl)
+            lds = vat_loss(model, x_ul_w.to(device))
+            us_loss = pl_loss + args.alpha * lds
 
             # calculate unsupervised pair loss
             pair_loss_u = pair_loss(output_ul_s, target_ul)
@@ -137,7 +136,7 @@ def train(model, datasets, dataloaders, modelpath,
             # print('pair_loss_u ', pair_loss_u)
 
             total_loss = (
-                        s_loss + args.lambda_u * pl_loss + args.lambda_pair_s * pair_loss_s + args.lambda_pair_u * pair_loss_u)
+                        l_loss + args.lambda_u * pl_loss + args.lambda_pair_s * pair_loss_s + args.lambda_pair_u * us_loss)
 
             # back propagation
             optimizer.zero_grad()
