@@ -4,10 +4,9 @@ import math
 import copy
 import os
 from os.path import join as pjoin
-from pairloss.pairloss import PairLoss
 
 from dataloader import get_cifar10, get_cifar100
-from utils import accuracy, alpha_weight, plot, interleave, de_interleave
+from utils import accuracy, alpha_weight, get_distance_loss, get_similarity, plot, interleave, de_interleave, get_pair_indices, bha_coeff, bha_coeff_loss
 
 from model.wrn import WideResNet
 
@@ -18,6 +17,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from utils import accuracy
 
+from torch import Tensor
+import numpy as np
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def train (model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
@@ -26,7 +29,6 @@ def train (model, datasets, dataloaders, modelpath,
         os.makedirs(modelpath)
     model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     training_loss = 1e8
     validation_loss = 1e8
     test_loss = 1e8
@@ -46,8 +48,7 @@ def train (model, datasets, dataloaders, modelpath,
             'model_width' : args.model_width,
             'drop_rate' : args.drop_rate,
         } 
-    # define pair loss
-    pair_loss = PairLoss(args)
+    
     # access datasets and dataloders
     labeled_dataset = datasets['labeled']
     labeled_loader = dataloaders['labeled']
@@ -114,7 +115,7 @@ def train (model, datasets, dataloaders, modelpath,
             l_loss = criterion(output_l, y_l)
 
             # calculate supervised pair loss
-            pair_loss_s = pair_loss(output_l_s, y_l, mode='supervised')
+            pair_loss_s = compute_pair_loss(output_l_s, y_l, args.confidence_threshold, args.similarity_threshold, mode='supervised')
 
             # get the pseudo-label from weak augmented unlabeled data 
             target_ul = F.softmax(output_ul_w, dim=1)
@@ -129,7 +130,7 @@ def train (model, datasets, dataloaders, modelpath,
           
 
             # calculate unsupervised pair loss
-            pair_loss_u = pair_loss(output_ul_s, target_ul)
+            pair_loss_u = compute_pair_loss(output_ul_s, target_ul, args.confidence_threshold, args.similarity_threshold, mode='unsupervised')
             
 
             total_loss = (l_loss +  args.lambda_u*pl_loss + args.lambda_pair_s*pair_loss_s + args.lambda_pair_u*pair_loss_u)
@@ -235,3 +236,38 @@ def train (model, datasets, dataloaders, modelpath,
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])
     return model
+
+def compute_pair_loss(logits: Tensor, targets: Tensor, confidence_threshold = 0.95, similarity_threshold = 0.9, mode = 'unsupervised'):
+    if(mode == 'supervised'):
+        targets_s = np.zeros(logits.size())
+        targets_s = np.full_like(targets_s, 1e-10)
+        targets_idx = [np.arange(targets_s.shape[0]), targets.tolist()]
+        targets_s[targets_idx] = 1 - (1e-10 * (targets_s.shape[1]-1))
+        targets = torch.tensor(targets_s).to(device)
+    indices = get_pair_indices(targets, ordered_pair=True)
+    total_size = len(indices) // 2
+
+    i_indices, j_indices = indices[:, 0], indices[:, 1]
+    targets_max_prob = targets.max(dim=1).values
+    targets_i_max_prob = targets_max_prob[i_indices]
+
+    logits_j = logits[j_indices]
+    targets_i = targets[i_indices]
+    targets_j = targets[j_indices]
+
+    # conf_mask should not track gradient
+    conf_mask = (targets_i_max_prob > confidence_threshold).detach().float()
+
+    similarities: Tensor = get_similarity(targets_i=targets_i,
+                                                targets_j=targets_j)
+    # sim_mask should not track gradient
+    sim_mask = F.threshold(similarities, similarity_threshold, 0).detach()
+
+    distance = get_distance_loss(logits=logits_j,
+                                        targets=targets_i)
+
+    loss = conf_mask * sim_mask * distance
+
+    loss = torch.sum(loss) / total_size
+
+    return loss

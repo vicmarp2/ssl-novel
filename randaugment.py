@@ -1,7 +1,9 @@
-# code in this file is adpated from
+# code in this file is adapted from
 # https://github.com/ildoonet/pytorch-randaugment/blob/master/RandAugment/augmentations.py
 # https://github.com/google-research/fixmatch/blob/master/third_party/auto_augment/augmentations.py
 # https://github.com/google-research/fixmatch/blob/master/libml/ctaugment.py
+# https://github.com/kekmodel/FixMatch-pytorch/blob/master/dataset/randaugment.py
+
 import logging
 import random
 
