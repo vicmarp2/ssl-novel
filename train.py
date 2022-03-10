@@ -4,7 +4,7 @@ import math
 import copy
 import os
 from os.path import join as pjoin
-from PairLoss.pairloss import PairLoss
+from pairloss.pairloss import PairLoss
 
 from dataloader import get_cifar10, get_cifar100
 from utils import accuracy, alpha_weight, plot, interleave, de_interleave

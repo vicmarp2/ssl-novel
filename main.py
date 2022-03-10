@@ -4,7 +4,8 @@ import argparse
 import math
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10, test_cifar100
-from utils import plot, plot_model, test_accuracy, validation_set
+from utils import plot, plot_model, test_accuracy, test_error, validation_set
+from pathlib import Path
 
 from model.wrn import WideResNet
 from train import train
@@ -21,6 +22,12 @@ warnings.filterwarnings("ignore")
 
 
 def main(args):
+    print(args)
+
+    # create directory to save models 
+    Path(args.modelpath).mkdir(parents=True, exist_ok=True)
+
+
     # protect iterations/epoch parameters from erroneous input values
     if args.total_iter % args.iter_per_epoch != 0:
         print("total_iter should be multiple of iter_per_epoch")
@@ -98,6 +105,9 @@ def main(args):
     
     # get test accuracy
     # test_accuracy(test_dataset, './models/obs/best_model_cifar10.pt')
+    
+    # get test error
+    # test_error(test_dataset, './runs/6_last_model_cifar10_4000.pt')
     
     # %%
     # plot training loss
